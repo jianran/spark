@@ -27,7 +27,7 @@ import org.apache.spark.internal.Logging
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.execution.LogicalRDD
 import org.apache.spark.sql.execution.datasources.{DataSource, LogicalRelation}
-import org.apache.spark.sql.execution.datasources.jdbc.{JDBCPartition, JDBCPartitioningInfo, JDBCRelation}
+import org.apache.spark.sql.execution.datasources.jdbc._
 import org.apache.spark.sql.execution.datasources.json.{InferSchema, JacksonParser, JSONOptions}
 import org.apache.spark.sql.types.StructType
 
@@ -193,6 +193,44 @@ class DataFrameReader private[sql](sparkSession: SparkSession) extends Logging {
     val parts = JDBCRelation.columnPartition(partitioning)
     jdbc(url, table, parts, connectionProperties)
   }
+
+  /**
+   * Construct a [[DataFrame]] representing the database table accessible via JDBC URL
+   * url named table. Partitions of the table will be retrieved in parallel based on the parameters
+   * passed to this function.
+   *
+   * Don't create too many partitions in parallel on a large cluster; otherwise Spark might crash
+   * your external database systems.
+   *
+   * @param url JDBC database url of the form `jdbc:subprotocol:subname`.
+   * @param table Name of the table in the external database.
+   * @param orderBy The name of a column order by
+   * @param asc if the order is asc
+   * @param start the offset of the limit.
+   * @param pageSize the page size of the partitions
+   * @param numPartitions the number of partitions. This, along with `lowerBound` (inclusive),
+   *                      `upperBound` (exclusive), form partition strides for generated WHERE
+   *                      clause expressions used to split the column `columnName` evenly.
+   * @param connectionProperties JDBC database connection arguments, a list of arbitrary string
+   *                             tag/value. Normally at least a "user" and "password" property
+   *                             should be included. "fetchsize" can be used to control the
+   *                             number of rows per fetch.
+   * @since 2.0.0
+   */
+  def jdbc(
+            url: String,
+            table: String,
+            orderBy: String,
+            asc: Boolean,
+            start: Long,
+            pageSize: Long,
+            numPartitions: Int,
+            connectionProperties: Properties): DataFrame = {
+    val partitioning = JDBCOrderbyLimitPartitioningInfo(orderBy, asc, start, pageSize, numPartitions)
+    val parts = JDBCRelation.orderbyLimitPartition(partitioning)
+    jdbc(url, table, parts, connectionProperties)
+  }
+
 
   /**
    * Construct a [[DataFrame]] representing the database table accessible via JDBC URL

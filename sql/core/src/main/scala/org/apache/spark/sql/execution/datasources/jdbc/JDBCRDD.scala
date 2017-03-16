@@ -42,6 +42,9 @@ case class JDBCPartition(whereClause: String, idx: Int) extends Partition {
   override def index: Int = idx
 }
 
+case class JDBCLimitPartition(orderLimit: String, override val idx: Int) extends JDBCPartition(null, idx) {
+}
+
 object JDBCRDD extends Logging {
 
   /**
@@ -315,7 +318,11 @@ private[jdbc] class JDBCRDD(
       "WHERE " + s"($filterWhereClause)" + " AND " + s"(${part.whereClause})"
     } else if (part.whereClause != null) {
       "WHERE " + part.whereClause
-    } else if (filterWhereClause.length > 0) {
+    } else if (part.isInstanceOf[JDBCLimitPartition] && filterWhereClause.length > 0) {
+      "WHERE " + filterWhereClause + " " + s"(${part.asInstanceOf[JDBCLimitPartition].orderLimit})"
+    } else if (part.isInstanceOf[JDBCLimitPartition]){
+      s"(${part.asInstanceOf[JDBCLimitPartition].orderLimit})"
+    } else if (filterWhereClause.length > 0){
       "WHERE " + filterWhereClause
     } else {
       ""

@@ -434,6 +434,20 @@ class JDBCSuite extends SparkFunSuite
     assert(res.count() === 8)
   }
 
+  test("Partitioning by order limit ") {
+    val res = spark.read.jdbc(
+      url = urlWithUserAndPass,
+      table = "TEST.seq",
+      orderBy = "id",
+      asc = true,
+      start = 0,
+      pageSize = 2,
+      numPartitions = 4,
+      connectionProperties = new Properties()
+    )
+    assert(res.count() === 8)
+  }
+
   test("Partitioning on column where lowerBound is larger than upperBound") {
     val e = intercept[IllegalArgumentException] {
       spark.read.jdbc(

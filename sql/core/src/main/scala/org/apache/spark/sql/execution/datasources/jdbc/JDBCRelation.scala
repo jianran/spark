@@ -37,6 +37,13 @@ private[sql] case class JDBCPartitioningInfo(
     upperBound: Long,
     numPartitions: Int)
 
+private[sql] case class JDBCOrderbyLimitPartitioningInfo(
+    orderbyColumn: String,
+    asc: Boolean,
+    startIndex: Long,
+    pageSize: Long,
+    numPartitions: Int)
+
 private[sql] object JDBCRelation extends Logging {
   /**
    * Given a partitioning schematic (a column of integral type, a number of
@@ -96,6 +103,49 @@ private[sql] object JDBCRelation extends Logging {
         }
       ans += JDBCPartition(whereClause, i)
       i = i + 1
+    }
+    ans.toArray
+  }
+
+  /**
+   * Given a partitioning schematic (order by  column, a number of
+   * partitions, and start offset and page size), generate
+   * order limit clauses for each partition so that each row in the table appears
+   * exactly once.  The pageSize are advisory in that
+   * incorrect values may cause the partitioning to be poor, but no data
+   * will fail to be represented.
+   *
+   * Null value predicate is added to the first partition where clause to include
+   * the rows with null value for the partitions column.
+   *
+   * @param partitioning partition information to generate the order by limit for each partition
+   * @return an array of partitions with where clause for each partition
+   */
+  def orderbyLimitPartition(partitioning: JDBCOrderbyLimitPartitioningInfo): Array[Partition] = {
+    if (partitioning == null || partitioning.numPartitions <= 1 ||
+      partitioning.pageSize <= 0) {
+      return Array[Partition](JDBCPartition(null, 0))
+    }
+
+    val startIndex = partitioning.startIndex
+    require (startIndex < 0,
+      s"Operation not allowed: the start index of partitioning column $startIndex is litter than the zero")
+
+    val pageSize = partitioning.pageSize
+    val column = partitioning.orderbyColumn
+    var orderby =  s"order by $column"
+    if (!partitioning.asc) {
+      orderby = orderby + " desc"
+    }
+    val numPartitions = partitioning.numPartitions
+    var i: Int = 0
+    var currentValue: Long = startIndex
+    var ans = new ArrayBuffer[Partition]()
+    while (i < numPartitions) {
+      val whereClause = s"$orderby limit $currentValue, $pageSize"
+      ans += JDBCLimitPartition(whereClause, i)
+      i = i + 1
+      currentValue += pageSize
     }
     ans.toArray
   }

@@ -609,6 +609,20 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(store.memoryStore.contains(rdd(0, 3)), "rdd_0_3 was not in store")
   }
 
+  test("SPARK-1194 regression: fix the same-RDD rule for cache replacement") {
+    store = makeBlockManager(12000)
+    store.putSingle(rdd(0, 0), new Array[Byte](4000), StorageLevel.MEMORY_ONLY)
+    store.putSingle(rdd(1, 0), new Array[Byte](4000), StorageLevel.MEMORY_ONLY)
+    // Access rdd_1_0 to ensure it's not least recently used.
+    assert(store.getSingleAndReleaseLock(rdd(1, 0)).isDefined, "rdd_1_0 was not in store")
+    // According to the same-RDD rule, rdd_1_0 should be replaced here.
+    store.putSingle(rdd(0, 1), new Array[Byte](4000), StorageLevel.MEMORY_ONLY)
+    // rdd_1_0 should have been replaced, even it's not least recently used.
+    assert(store.memoryStore.contains(rdd(0, 0)), "rdd_0_0 was not in store")
+    assert(store.memoryStore.contains(rdd(0, 1)), "rdd_0_1 was not in store")
+    assert(!store.memoryStore.contains(rdd(1, 0)), "rdd_1_0 was in store")
+  }
+
   test("on-disk storage") {
     store = makeBlockManager(1200)
     val a1 = new Array[Byte](400)
@@ -1064,19 +1078,7 @@ class BlockManagerSuite extends SparkFunSuite with Matchers with BeforeAndAfterE
     assert(matchedBlockIds.toSet === Set(RDDBlockId(1, 0), RDDBlockId(1, 1)))
   }
 
-  test("SPARK-1194 regression: fix the same-RDD rule for cache replacement") {
-    store = makeBlockManager(12000)
-    store.putSingle(rdd(0, 0), new Array[Byte](4000), StorageLevel.MEMORY_ONLY)
-    store.putSingle(rdd(1, 0), new Array[Byte](4000), StorageLevel.MEMORY_ONLY)
-    // Access rdd_1_0 to ensure it's not least recently used.
-    assert(store.getSingleAndReleaseLock(rdd(1, 0)).isDefined, "rdd_1_0 was not in store")
-    // According to the same-RDD rule, rdd_1_0 should be replaced here.
-    store.putSingle(rdd(0, 1), new Array[Byte](4000), StorageLevel.MEMORY_ONLY)
-    // rdd_1_0 should have been replaced, even it's not least recently used.
-    assert(store.memoryStore.contains(rdd(0, 0)), "rdd_0_0 was not in store")
-    assert(store.memoryStore.contains(rdd(0, 1)), "rdd_0_1 was not in store")
-    assert(!store.memoryStore.contains(rdd(1, 0)), "rdd_1_0 was in store")
-  }
+
 
   test("safely unroll blocks through putIterator (disk)") {
     store = makeBlockManager(12000)

@@ -42,6 +42,7 @@ class UnifiedMemoryManagerSuite extends MemoryManagerSuite with PrivateMethodTes
       maxOffHeapExecutionMemory: Long): UnifiedMemoryManager = {
     val conf = new SparkConf()
       .set("spark.memory.fraction", "1")
+      .set("spark.testing", "1")
       .set("spark.testing.memory", maxOnHeapExecutionMemory.toString)
       .set("spark.memory.offHeap.size", maxOffHeapExecutionMemory.toString)
       .set("spark.memory.storageFraction", storageFraction.toString)
@@ -257,6 +258,7 @@ class UnifiedMemoryManagerSuite extends MemoryManagerSuite with PrivateMethodTes
   test("execution can evict cached blocks when there are multiple active tasks (SPARK-12155)") {
     val conf = new SparkConf()
       .set("spark.memory.fraction", "1")
+      .set("spark.testing", "1")
       .set("spark.memory.storageFraction", "0")
       .set("spark.testing.memory", "1000")
     val mm = UnifiedMemoryManager(conf, numCores = 2)
@@ -283,6 +285,7 @@ class UnifiedMemoryManagerSuite extends MemoryManagerSuite with PrivateMethodTes
   test("SPARK-15260: atomically resize memory pools") {
     val conf = new SparkConf()
       .set("spark.memory.fraction", "1")
+      .set("spark.testing", "1")
       .set("spark.memory.storageFraction", "0")
       .set("spark.testing.memory", "1000")
     val mm = UnifiedMemoryManager(conf, numCores = 2)
